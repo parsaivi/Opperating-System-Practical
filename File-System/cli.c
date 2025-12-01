@@ -25,6 +25,7 @@ void print_help() {
     printf("  rm <filename>                    - delete a file\n");
     printf("  ls                               - list files\n");
     printf("  stat                             - show filesystem stats\n");
+    printf("  viz                              - visualize free space regions\n");
     printf("  format                           - format the disk\n");
     printf("  help                             - show this help\n");
     printf("  exit                             - exit\n\n");
@@ -350,6 +351,9 @@ void run_shell() {
         }
         else if (strcmp(cmd, "stat") == 0) {
             cmd_stat();
+        }
+        else if (strcmp(cmd, "viz") == 0) {
+            fs_visualize_free_list();
         }
         else if (strcmp(cmd, "format") == 0) {
             cmd_format();

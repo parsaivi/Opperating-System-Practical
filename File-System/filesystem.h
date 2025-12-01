@@ -32,10 +32,10 @@ typedef struct {
     int32_t is_used;  // 1 = استفاده شده, 0 = پاک شده
 } FileEntry;
 
-// ساختار بلاک آزاد
+// ساختار بلاک آزاد - با شروع و پایان بلاک
 typedef struct FreeBlockNode {
-    int32_t start_block;
-    int32_t block_count;
+    int32_t start_block;    // شروع ناحیه آزاد
+    int32_t end_block;      // پایان ناحیه آزاد (شامل این بلاک)
     struct FreeBlockNode* next;
 } FreeBlockNode;
 
@@ -57,5 +57,10 @@ void fs_close_file(int fd);
 int fs_get_file_size(int fd);
 void fs_get_stats(int* total, int* used, int* free, int* file_count);
 int fs_list_files(char files[][MAX_FILENAME], int max_count);
+
+// مدیریت فضای آزاد
+int fs_alloc(int size);
+void fs_free(int start, int size);
+void fs_visualize_free_list();
 
 #endif
