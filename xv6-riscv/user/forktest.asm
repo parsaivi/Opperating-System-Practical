@@ -45,7 +45,7 @@ forktest(void)
 
   print("fork test\n");
   32:	00000517          	auipc	a0,0x0
-  36:	3de50513          	addi	a0,a0,990 # 410 <uptime+0xe>
+  36:	3e650513          	addi	a0,a0,998 # 418 <settickets+0xe>
   3a:	fc7ff0ef          	jal	0 <print>
 
   for(n=0; n<N; n++){
@@ -67,7 +67,7 @@ forktest(void)
   if(n == N){
     print("fork claimed to work N times!\n");
   54:	00000517          	auipc	a0,0x0
-  58:	40c50513          	addi	a0,a0,1036 # 460 <uptime+0x5e>
+  58:	41450513          	addi	a0,a0,1044 # 468 <settickets+0x5e>
   5c:	fa5ff0ef          	jal	0 <print>
     exit(1);
   60:	4505                	li	a0,1
@@ -80,7 +80,7 @@ forktest(void)
     if(wait(0) < 0){
       print("wait stopped early\n");
   6a:	00000517          	auipc	a0,0x0
-  6e:	3b650513          	addi	a0,a0,950 # 420 <uptime+0x1e>
+  6e:	3be50513          	addi	a0,a0,958 # 428 <settickets+0x1e>
   72:	f8fff0ef          	jal	0 <print>
       exit(1);
   76:	4505                	li	a0,1
@@ -91,7 +91,7 @@ forktest(void)
   if(wait(0) != -1){
     print("wait got too many\n");
   7c:	00000517          	auipc	a0,0x0
-  80:	3bc50513          	addi	a0,a0,956 # 438 <uptime+0x36>
+  80:	3c450513          	addi	a0,a0,964 # 440 <settickets+0x36>
   84:	f7dff0ef          	jal	0 <print>
     exit(1);
   88:	4505                	li	a0,1
@@ -114,7 +114,7 @@ forktest(void)
 
   print("fork test OK\n");
   ac:	00000517          	auipc	a0,0x0
-  b0:	3a450513          	addi	a0,a0,932 # 450 <uptime+0x4e>
+  b0:	3ac50513          	addi	a0,a0,940 # 458 <settickets+0x4e>
   b4:	f4dff0ef          	jal	0 <print>
 }
   b8:	60e2                	ld	ra,24(sp)
@@ -815,3 +815,13 @@ uptime:
  404:	00000073          	ecall
  ret
  408:	8082                	ret
+
+000000000000040a <settickets>:
+.global settickets
+settickets:
+ li a7, SYS_settickets
+ 40a:	48d9                	li	a7,22
+ ecall
+ 40c:	00000073          	ecall
+ ret
+ 410:	8082                	ret

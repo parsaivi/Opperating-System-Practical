@@ -146,6 +146,9 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  // Initialize lottery ticket to default value (10)
+  p->ticket = 10;
+
   return p;
 }
 
@@ -289,6 +292,9 @@ kfork(void)
   np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
+
+  // Inherit ticket count from parent
+  np->ticket = p->ticket;
 
   pid = np->pid;
 
@@ -437,27 +443,41 @@ scheduler(void)
     intr_on();
     intr_off();
 
-    int found = 0;
+    // Lottery Scheduling: count total tickets of RUNNABLE processes
+    int total_tickets = 0;
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+        total_tickets += p->ticket;
       }
       release(&p->lock);
     }
-    if(found == 0) {
+
+    if(total_tickets == 0) {
       // nothing to run; stop running on this core until an interrupt.
       asm volatile("wfi");
+      continue;
+    }
+
+    // Generate random winning ticket (ensure positive with & 0x7FFFFFFF)
+    int winner = (rand_int() & 0x7FFFFFFF) % total_tickets;
+    int counter = 0;
+
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if(p->state == RUNNABLE) {
+        counter += p->ticket;
+        if(counter > winner) {
+          // This process wins the lottery
+          p->state = RUNNING;
+          c->proc = p;
+          swtch(&c->context, &p->context);
+          c->proc = 0;
+          release(&p->lock);
+          break;
+        }
+      }
+      release(&p->lock);
     }
   }
 }
@@ -687,4 +707,22 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+// Set lottery tickets for a process with given pid
+int
+settickets(int pid, int tickets)
+{
+  struct proc *p;
+  
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
+    if(p->pid == pid){
+      p->ticket = tickets;
+      release(&p->lock);
+      return 0;
+    }
+    release(&p->lock);
+  }
+  return -1;  // PID not found
 }

@@ -107,3 +107,19 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// Set lottery tickets for a process
+uint64
+sys_settickets(void)
+{
+  int pid, tickets;
+  
+  argint(0, &pid);
+  argint(1, &tickets);
+  
+  // Validate ticket count (must be positive)
+  if(tickets <= 0)
+    return -1;
+  
+  return settickets(pid, tickets);
+}

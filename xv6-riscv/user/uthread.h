@@ -28,9 +28,3 @@ struct thread {
   int        state;                 // FREE, RUNNING, RUNNABLE
   struct context context;           // swtch() here to run process
 };
-
-void create_thread(void (*fn)(void));
-void init_threads(void);
-void schedule_thread(void);
-void yield_thread(void);
-void uthread_switch(struct context *old, struct context *new);
