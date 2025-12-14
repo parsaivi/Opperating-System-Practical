@@ -15,6 +15,7 @@ static char current_filename[MAX_FILENAME] = "";
 
 void print_help() {
     printf("\n📚 Available commands:\n");
+    printf("\n📁 File Operations:\n");
     printf("  create <filename> [permissions]  - create a new file (example: create test.txt 644)\n");
     printf("  open <filename> [flags]          - open a file (flags: r/w/rw/c)\n");
     printf("  read [pos] [bytes]               - read from the opened file\n");
@@ -27,15 +28,35 @@ void print_help() {
     printf("  stat                             - show filesystem stats\n");
     printf("  viz                              - visualize free space regions\n");
     printf("  format                           - format the disk\n");
+    printf("\n👥 User Management (root only):\n");
+    printf("  useradd <username>               - create a new user\n");
+    printf("  userdel <username>               - delete a user\n");
+    printf("  users                            - list all users\n");
+    printf("  groupadd <groupname>             - create a new group\n");
+    printf("  groupdel <groupname>             - delete a group\n");
+    printf("  groups                           - list all groups\n");
+    printf("  usermod -aG <user> <group>       - add user to group\n");
+    printf("\n🔐 Permissions:\n");
+    printf("  chmod <mode> <file>              - change file permissions (e.g., chmod 755 test.txt)\n");
+    printf("  chown <user>:<group> <file>      - change file owner and group\n");
+    printf("  chgrp <group> <file>             - change file group\n");
+    printf("  getfacl <file>                   - show file access control list\n");
+    printf("\n🔄 User Session:\n");
+    printf("  su <username>                    - switch user\n");
+    printf("  whoami                           - show current user\n");
+    printf("\n⚙️  System:\n");
     printf("  help                             - show this help\n");
     printf("  exit                             - exit\n\n");
 }
 
 void print_prompt() {
+    const char* username = fs_get_username(fs_get_current_user());
+    if (!username) username = "?";
+    
     if (current_fd >= 0) {
-        printf("myfs [%s]> ", current_filename);
+        printf("myfs:%s [%s]> ", username, current_filename);
     } else {
-        printf("myfs> ");
+        printf("myfs:%s> ", username);
     }
     fflush(stdout);
 }
@@ -116,6 +137,18 @@ void cmd_open(int argc, char args[][MAX_COMMAND_LEN]) {
         flags = parse_open_flags(args[1]);
     }
     
+    // Check read permission for existing files
+    if (!(flags & O_CREAT)) {
+        int required_perm = PERM_READ;
+        if (flags & O_WRONLY || flags & O_RDWR) {
+            required_perm |= PERM_WRITE;
+        }
+        if (!fs_check_permission(args[0], required_perm)) {
+            printf("❌ Permission denied\n");
+            return;
+        }
+    }
+    
     current_fd = fs_open(args[0], flags);
     if (current_fd >= 0) {
         strncpy(current_filename, args[0], MAX_FILENAME - 1);
@@ -126,6 +159,12 @@ void cmd_open(int argc, char args[][MAX_COMMAND_LEN]) {
 void cmd_read(int argc, char args[][MAX_COMMAND_LEN]) {
     if (current_fd < 0) {
         printf("❌ No file is open. Use open first\n");
+        return;
+    }
+    
+    // Check read permission
+    if (!fs_check_permission(current_filename, PERM_READ)) {
+        printf("❌ Permission denied: no read access\n");
         return;
     }
     
@@ -158,6 +197,12 @@ void cmd_read(int argc, char args[][MAX_COMMAND_LEN]) {
 void cmd_write(int argc, char args[][MAX_COMMAND_LEN]) {
     if (current_fd < 0) {
         printf("❌ No file is open. Use open first\n");
+        return;
+    }
+    
+    // Check write permission
+    if (!fs_check_permission(current_filename, PERM_WRITE)) {
+        printf("❌ Permission denied: no write access\n");
         return;
     }
     
@@ -232,6 +277,12 @@ void cmd_rm(int argc, char args[][MAX_COMMAND_LEN]) {
         return;
     }
     
+    // Check write permission (needed to delete)
+    if (!fs_check_permission(args[0], PERM_WRITE)) {
+        printf("❌ Permission denied: no write access\n");
+        return;
+    }
+    
     if (fs_delete(args[0]) == 0) {
         printf("✅ File %s deleted\n", args[0]);
     }
@@ -290,6 +341,115 @@ void cmd_format() {
     } else {
         printf("❌ Operation canceled\n");
     }
+}
+
+// =============== دستورات مدیریت کاربران ===============
+
+void cmd_useradd(int argc, char args[][MAX_COMMAND_LEN]) {
+    if (argc < 1) {
+        printf("❌ Usage: useradd <username>\n");
+        return;
+    }
+    fs_useradd(args[0]);
+}
+
+void cmd_userdel(int argc, char args[][MAX_COMMAND_LEN]) {
+    if (argc < 1) {
+        printf("❌ Usage: userdel <username>\n");
+        return;
+    }
+    fs_userdel(args[0]);
+}
+
+void cmd_groupadd(int argc, char args[][MAX_COMMAND_LEN]) {
+    if (argc < 1) {
+        printf("❌ Usage: groupadd <groupname>\n");
+        return;
+    }
+    fs_groupadd(args[0]);
+}
+
+void cmd_groupdel(int argc, char args[][MAX_COMMAND_LEN]) {
+    if (argc < 1) {
+        printf("❌ Usage: groupdel <groupname>\n");
+        return;
+    }
+    fs_groupdel(args[0]);
+}
+
+void cmd_usermod(int argc, char args[][MAX_COMMAND_LEN]) {
+    if (argc < 3 || strcmp(args[0], "-aG") != 0) {
+        printf("❌ Usage: usermod -aG <user> <group>\n");
+        return;
+    }
+    fs_usermod_add_group(args[1], args[2]);
+}
+
+void cmd_su(int argc, char args[][MAX_COMMAND_LEN]) {
+    if (argc < 1) {
+        printf("❌ Usage: su <username>\n");
+        return;
+    }
+    fs_switch_user(args[0]);
+}
+
+void cmd_whoami() {
+    int uid = fs_get_current_user();
+    const char* username = fs_get_username(uid);
+    printf("👤 %s (uid=%d)\n", username ? username : "unknown", uid);
+}
+
+// =============== دستورات سطح دسترسی ===============
+
+void cmd_chmod(int argc, char args[][MAX_COMMAND_LEN]) {
+    if (argc < 2) {
+        printf("❌ Usage: chmod <mode> <file>\n");
+        printf("   Example: chmod 755 test.txt\n");
+        return;
+    }
+    
+    uint32_t mode = strtol(args[0], NULL, 8);
+    fs_chmod(args[1], mode);
+}
+
+void cmd_chown(int argc, char args[][MAX_COMMAND_LEN]) {
+    if (argc < 2) {
+        printf("❌ Usage: chown <user>:<group> <file>\n");
+        printf("   Example: chown alice:staff test.txt\n");
+        return;
+    }
+    
+    char* colon = strchr(args[0], ':');
+    if (colon) {
+        *colon = '\0';
+        char* user = args[0];
+        char* group = colon + 1;
+        
+        if (strlen(user) > 0) {
+            fs_chown(args[1], user);
+        }
+        if (strlen(group) > 0) {
+            fs_chgrp(args[1], group);
+        }
+    } else {
+        fs_chown(args[1], args[0]);
+    }
+}
+
+void cmd_chgrp(int argc, char args[][MAX_COMMAND_LEN]) {
+    if (argc < 2) {
+        printf("❌ Usage: chgrp <group> <file>\n");
+        return;
+    }
+    fs_chgrp(args[1], args[0]);
+}
+
+void cmd_getfacl(int argc, char args[][MAX_COMMAND_LEN]) {
+    if (argc < 1) {
+        printf("❌ Usage: getfacl <file>\n");
+        return;
+    }
+    fs_getfacl(args[0]);
 }
 
 // =============== حلقه اصلی ===============
@@ -360,6 +520,47 @@ void run_shell() {
         }
         else if (strcmp(cmd, "clear") == 0) {
             system("clear || cls");
+        }
+        // User management commands
+        else if (strcmp(cmd, "useradd") == 0) {
+            cmd_useradd(argc, args);
+        }
+        else if (strcmp(cmd, "userdel") == 0) {
+            cmd_userdel(argc, args);
+        }
+        else if (strcmp(cmd, "users") == 0) {
+            fs_list_users();
+        }
+        else if (strcmp(cmd, "groupadd") == 0) {
+            cmd_groupadd(argc, args);
+        }
+        else if (strcmp(cmd, "groupdel") == 0) {
+            cmd_groupdel(argc, args);
+        }
+        else if (strcmp(cmd, "groups") == 0) {
+            fs_list_groups();
+        }
+        else if (strcmp(cmd, "usermod") == 0) {
+            cmd_usermod(argc, args);
+        }
+        else if (strcmp(cmd, "su") == 0) {
+            cmd_su(argc, args);
+        }
+        else if (strcmp(cmd, "whoami") == 0) {
+            cmd_whoami();
+        }
+        // Permission commands
+        else if (strcmp(cmd, "chmod") == 0) {
+            cmd_chmod(argc, args);
+        }
+        else if (strcmp(cmd, "chown") == 0) {
+            cmd_chown(argc, args);
+        }
+        else if (strcmp(cmd, "chgrp") == 0) {
+            cmd_chgrp(argc, args);
+        }
+        else if (strcmp(cmd, "getfacl") == 0) {
+            cmd_getfacl(argc, args);
         }
         else {
             printf("❌ Command '%s' not recognized. Type 'help' for help\n", cmd);
