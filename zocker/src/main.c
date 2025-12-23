@@ -36,6 +36,14 @@ int main(int argc, char **argv) {
       }
       strncpy(cfg.name, argv[++i], sizeof(cfg.name) - 1);
       i++;
+    } else if (strcmp(argv[i], "--base-dir") == 0) {
+      if (i + 1 >= argc) {
+        fprintf(stderr, "[ERR] Missing --base-dir value (e.g. [--base-dir "
+                        "/aboslute/path/to/base/dir]).\n");
+        return 1;
+      }
+      strncpy(cfg.base_dir, argv[++i], sizeof(cfg.base_dir) - 1);
+      i++;
     } else {
       strncpy(cfg.command, argv[i], sizeof(cfg.command) - 1);
       i++;

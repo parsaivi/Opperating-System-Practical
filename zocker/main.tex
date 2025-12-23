@@ -1,0 +1,505 @@
+% !TeX program = xelatex
+\documentclass[12pt,a4paper]{article}
+
+% --- Language / typography (Persian) ---
+\usepackage{xepersian}
+\settextfont{Vazirmatn}
+\setlatintextfont{Latin Modern Roman}
+
+% --- Page/layout ---
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{setspace}
+\setstretch{1.15}
+
+% --- Links ---
+\usepackage[hidelinks]{hyperref}
+
+% --- Nice code blocks (no listings) ---
+\usepackage{fvextra}
+\usepackage{xcolor}
+\definecolor{codebg}{HTML}{F7F7F7}
+\DefineVerbatimEnvironment{code}{Verbatim}{
+  breaklines=true,
+  breaksymbolleft=\tiny\ensuremath{\hookleftarrow},
+  fontsize=\small,
+  frame=single,
+  rulecolor=\color{black!15},
+  framerule=0.4pt,
+  framesep=6pt,
+  baselinestretch=1.0,
+  bgcolor=codebg
+}
+
+% --- Small helpers ---
+\setlength{\parskip}{0.35em}
+\setlength{\parindent}{0pt}
+
+\title{گزارش تمرین 4 - Docker Container Implementation}
+\date{۲۳ دسامبر ۲۰۲۵}
+
+\begin{document}
+\maketitle
+
+\textbf{موضوع}: پیاده‌سازی قابلیت اجرای کانتینر بر اساس یک دایرکتوری پایه دلخواه
+
+\tableofcontents
+\vspace{0.5em}
+\hrule
+\vspace{1em}
+
+\section{مقدمه}
+
+در این تمرین، هدف توسعه پروژه Zocker بود تا بتوانیم کانتینرها را بر اساس یک دایرکتوری پایه (base directory) دلخواه اجرا کنیم. این قابلیت به ما اجازه می‌دهد تا از یک فایل سیستم استخراج شده از یک ایمیج Docker استاندارد (مانند Alpine Linux) برای اجرای کانتینرهای Zocker استفاده کنیم.
+
+\subsection{اهداف تمرین}
+\begin{itemize}
+  \item آشنایی با دستور \lr{docker export}
+  \item درک تفاوت‌های بین فایل سیستم export شده و کانتینر در حال اجرا
+  \item پیاده‌سازی قابلیت \lr{--base-dir} در Zocker
+  \item بررسی محدودیت‌های روش ساده کپی کردن فایل سیستم
+\end{itemize}
+
+\section{مراحل انجام کار}
+
+\subsection{گام آ: دریافت آخرین نسخه و رفتن به تگ \lr{t4}}
+
+ابتدا آخرین نسخه پروژه را از مخزن دریافت کرده و به تگ \lr{t4} رفتیم:
+
+\begin{code}
+cd /home/divar/Documents/OS/zock/zocker
+git pull origin master
+git checkout t4
+\end{code}
+
+\textbf{نتیجه}: Successfully switched to tag t4 with commit "Add Task 4"
+
+\subsection{گام ب: دریافت ایمیج Alpine}
+
+ایمیج \lr{alpine:3.22.2} را از Docker Hub دریافت کردیم:
+
+\begin{code}
+docker pull alpine:3.22.2
+\end{code}
+
+\textbf{نتیجه}:
+\begin{code}
+3.22.2: Pulling from library/alpine
+Digest: sha256:4b7ce07002c69e8f3d704a9c5d6fd3053be500b7f1c69fc0d80990c2ad8dd412
+Status: Image is up to date for alpine:3.22.2
+\end{code}
+
+\subsection{گام ج: اجرای کانتینر با ایمیج Alpine}
+
+یک کانتینر بر اساس ایمیج Alpine با دستور زیر اجرا کردیم:
+
+\begin{code}
+docker run --rm -d alpine:3.22.2 sleep 1000
+\end{code}
+
+\textbf{نتیجه}: Container ID: \lr{7e9a61c7ca6b3adaefd8cd8271531b6c73c0ef24fdb28cf2ed1aa6a0afc32b8a}
+
+\textbf{توضیح پرچم \lr{--rm}}:
+این پرچم به Docker می‌گوید که به محض متوقف شدن کانتینر، آن را به صورت خودکار حذف کند. این کار باعث می‌شود که کانتینرهای متوقف شده در سیستم انباشته نشوند و فضای دیسک را اشغال نکنند.
+
+\subsection{گام د: Export کردن فایل سیستم کانتینر}
+
+با استفاده از دستور زیر، ساختار فایل سیستم کانتینر را در فایل \lr{export.tar} ذخیره کردیم:
+
+\begin{code}
+docker export 7e9a61c7ca6b -o export.tar
+\end{code}
+
+این دستور تمام فایل‌های موجود در فایل سیستم کانتینر (شامل \lr{/bin, /etc, /lib} و غیره) را در یک فایل \lr{tar} ذخیره می‌کند.
+
+\subsection{گام ه: استخراج و مقایسه محتوای فایل}
+
+محتوای فایل \lr{export.tar} را در دایرکتوری موقت استخراج کردیم:
+
+\begin{code}
+mkdir -p /tmp/export_test
+tar -xf export.tar -C /tmp/export_test
+ls -la /tmp/export_test/
+\end{code}
+
+\textbf{نتیجه ساختار دایرکتوری}:
+\begin{code}
+drwxr-xr-x   2 bin
+drwxr-xr-x   4 dev
+-rwxr-xr-x   1 .dockerenv
+drwxr-xr-x  17 etc
+drwxr-xr-x   2 home
+drwxr-xr-x   6 lib
+drwxr-xr-x   5 media
+drwxr-xr-x   2 mnt
+drwxr-xr-x   2 opt
+dr-xr-xr-x   2 proc (خالی)
+drwx------   2 root
+drwxr-xr-x   3 run
+drwxr-xr-x   2 sbin
+drwxr-xr-x   2 srv
+drwxr-xr-x   2 sys
+drwxrwxr-x   2 tmp
+drwxr-xr-x   7 usr
+drwxr-xr-x  11 var
+\end{code}
+
+\subsubsection{مقایسه دایرکتوری \lr{/proc}}
+
+\textbf{در فایل export شده}:
+\begin{code}
+ls -la /tmp/export_test/proc/
+# نتیجه: خالی (فقط . و ..)
+\end{code}
+
+\textbf{در کانتینر در حال اجرا}:
+\begin{code}
+docker exec 7e9a61c7ca6b ls -la /proc/ | head -20
+# نتیجه: پر از فایل‌ها و دایرکتوری‌های مرتبط با پروسس‌ها
+# شامل: 1, 7, acpi, buddyinfo, cmdline, cpuinfo, devices, ...
+\end{code}
+
+\textbf{علت تفاوت}:
+دایرکتوری \lr{/proc} یک filesystem مجازی (pseudo-filesystem) است که توسط کرنل لینوکس در زمان اجرا ایجاد می‌شود و اطلاعات پروسس‌ها و سیستم را نمایش می‌دهد. دستور \lr{docker export} فقط فایل‌های واقعی را export می‌کند و filesystemهای مجازی مانند \lr{/proc}, \lr{/sys}, و \lr{/dev} را شامل نمی‌شود. در کانتینر در حال اجرا، \lr{/proc} توسط کرنل mount شده و پر از اطلاعات است، اما در export شده فقط یک دایرکتوری خالی است.
+
+\subsection{گام و: استخراج در دایرکتوری نهایی}
+
+محتوای فایل را در مسیر \lr{/tmp/zocker/mycontainer} استخراج کردیم:
+
+\begin{code}
+mkdir -p /tmp/zocker/mycontainer
+tar -xf export.tar -C /tmp/zocker/mycontainer
+ls -la /tmp/zocker/mycontainer/
+\end{code}
+
+\subsection{گام ز: تغییرات کد}
+
+تابع \lr{run\_container} در فایل \lr{src/run.c} را تغییر دادیم تا از پارامتر \lr{base\_dir} پشتیبانی کند.
+
+\subsubsection{تغییرات اعمال شده}
+\begin{enumerate}
+  \item \textbf{بررسی وجود base\_dir}: اگر \lr{base\_dir} مقدار داشته باشد، از آن به عنوان دایرکتوری کانتینر استفاده می‌کنیم، در غیر این صورت از \lr{setup\_container\_dir} استفاده می‌کنیم.
+  \item \textbf{مدیریت دایرکتوری \lr{/proc}}: چون در base\_dir مستخرج شده، دایرکتوری \lr{/proc} از قبل وجود دارد، قبل از ایجاد آن بررسی می‌کنیم.
+\end{enumerate}
+
+\paragraph{کد قبل از تغییر}
+\begin{code}
+if (pid == 0) {
+    char container_dir[256];
+    if (setup_container_dir(cont.id, container_dir) != 0) {
+      fprintf(stderr, "[ERR] Failed to setup container directory for %s\n",
+              cont.id);
+      return 1;
+    }
+    // ...
+}
+\end{code}
+
+\paragraph{کد بعد از تغییر}
+\begin{code}
+if (pid == 0) {
+    char container_dir[256];
+
+    // Use base_dir if provided, otherwise setup container directory
+    if (strlen(cont.base_dir) > 0) {
+      strncpy(container_dir, cont.base_dir, sizeof(container_dir) - 1);
+      container_dir[sizeof(container_dir) - 1] = '\0';
+    } else {
+      if (setup_container_dir(cont.id, container_dir) != 0) {
+        fprintf(stderr, "[ERR] Failed to setup container directory for %s\n",
+                cont.id);
+        return 1;
+      }
+    }
+    // ...
+}
+\end{code}
+
+و همچنین برای مدیریت \lr{/proc}:
+
+\begin{code}
+// Create /proc directory if it doesn't exist (it might exist in base_dir)
+struct stat st;
+if (stat("/proc", &st) == -1) {
+  if (mkdir("/proc", 0555) != 0) {
+    fprintf(stderr, "[ERR] Failed to create /proc directory: %s\n",
+            strerror(errno));
+    return 1;
+  }
+}
+\end{code}
+
+\subsection{گام ح: کامپایل و تست}
+
+پروژه را کامپایل کرده و تست کردیم:
+
+\begin{code}
+make clean && make
+\end{code}
+
+\paragraph{تست 1: اجرای دستورات در کانتینر}
+\begin{code}
+./zocker run --name my-container --base-dir /tmp/zocker/mycontainer \
+    'ls -la / && cat /test.txt && echo "Current hostname:" && hostname'
+\end{code}
+
+\textbf{نتیجه}:
+\begin{code}
+Running child with pid: 1
+total 76
+drwxrwxr-x   19 1000     1000          4096 Dec 23 03:54 .
+drwxrwxr-x   19 1000     1000          4096 Dec 23 03:54 ..
+-rwxr-xr-x    1 1000     1000             0 Dec 23 03:50 .dockerenv
+drwxr-xr-x    2 1000     1000          4096 Oct  8 09:28 bin
+...
+-rw-rw-r--    1 1000     1000            17 Dec 23 03:54 test.txt
+...
+Hello from host!
+Current hostname:
+my-container
+[Parent] Stoping...
+\end{code}
+
+\textbf{موفقیت‌آمیز}: کانتینر با موفقیت اجرا شد و قابلیت‌ها (دسترسی به فایل‌های base\_dir، PID namespace جدا، hostname تنظیم‌شده، و \lr{/proc} mount شده) برقرار بودند.
+
+\section{پاسخ به سوالات}
+
+\subsection{سوال 1: پرچم \lr{--rm} چه کاربردی دارد؟}
+
+پرچم \lr{--rm} مشخص می‌کند کانتینر پس از توقف، به صورت خودکار حذف شود. مزایا:
+\begin{itemize}
+  \item مدیریت خودکار منابع و جلوگیری از انباشته شدن کانتینرهای متوقف شده
+  \item صرفه‌جویی در فضای دیسک
+  \item تمیزکاری خودکار (عدم نیاز به \lr{docker rm})
+  \item مناسب برای تست و کانتینرهای موقت
+\end{itemize}
+
+\textbf{مثال کاربردی}:
+\begin{itemize}
+  \item بدون \lr{--rm}: \lr{docker run -d alpine sleep 10} \;\; → کانتینر پس از اتمام باقی می‌ماند
+  \item با \lr{--rm}: \lr{docker run --rm -d alpine sleep 10} \;\; → کانتینر پس از اتمام حذف می‌شود
+\end{itemize}
+
+\subsection{سوال 2: علت تفاوت محتوای پوشه \lr{/proc}}
+
+\textbf{مشاهده}:
+\begin{itemize}
+  \item در فایل export شده: \lr{/proc} خالی است
+  \item در کانتینر در حال اجرا: \lr{/proc} پر از فایل‌ها و دایرکتوری‌هاست
+\end{itemize}
+
+\textbf{علت}:
+\begin{enumerate}
+  \item \lr{/proc} یک pseudo-filesystem است که توسط کرنل در runtime ساخته می‌شود.
+  \item \lr{docker export} فقط فایل‌های واقعی را خروجی می‌گیرد و محتویات filesystemهای مجازی را کپی نمی‌کند.
+  \item در کانتینر اجرا شده، \lr{/proc} با mount از نوع \lr{proc} فعال و populate می‌شود.
+\end{enumerate}
+
+\textbf{نتیجه}: در Zocker پس از \lr{chroot} باید \lr{/proc} را mount کنیم.
+
+\subsection{سوال 3: آیا فایل اضافه شده به \lr{/tmp/zocker/mycontainer/test.txt} از داخل کانتینر قابل دسترسی است؟}
+
+\textbf{بله، کاملاً قابل دسترسی است.}
+
+\begin{enumerate}
+  \item با \lr{chroot(/tmp/zocker/mycontainer)}، دید پروسس کانتینر از root فایل سیستم تغییر می‌کند.
+  \item فایل \lr{/tmp/zocker/mycontainer/test.txt} روی میزبان، داخل کانتینر به شکل \lr{/test.txt} دیده می‌شود.
+  \item تغییرات در این مسیر روی میزبان، داخل کانتینر هم قابل مشاهده است.
+\end{enumerate}
+
+\textbf{اثبات عملی}:
+\begin{code}
+# در هاست
+echo "Hello from host!" > /tmp/zocker/mycontainer/test.txt
+
+# در کانتینر
+./zocker run --name my-container --base-dir /tmp/zocker/mycontainer 'cat /test.txt'
+# نتیجه: Hello from host!
+\end{code}
+
+\subsection{سوال 4: آیا در پیاده‌سازی اصلی Docker از همین روش استفاده شده است؟ اگر خیر، یکی از دلایل مهم ناکارآمد بودن این روش را ذکر کنید.}
+
+\textbf{خیر.} Docker از روش ساده کپی کامل فایل سیستم استفاده نمی‌کند و به جای آن از \textbf{Layered Filesystem} و مکانیزم \lr{Copy-on-Write} استفاده می‌کند.
+
+\subsubsection{یکی از دلایل مهم ناکارآمدی: مصرف بالای فضای دیسک}
+
+اگر 100 کانتینر با یک ایمیج یکسان داشته باشیم:
+\begin{itemize}
+  \item روش کپی کامل: \lr{100 \times 5MB = 500MB}
+  \item روش لایه‌ای Docker: یک base layer مشترک + تغییرات کوچک هر کانتینر
+\end{itemize}
+
+\textbf{مثال}:
+\begin{code}
+کانتینر 1: /tmp/zocker/container1/ (5 MB)
+کانتینر 2: /tmp/zocker/container2/ (5 MB)
+...
+کانتینر 100: /tmp/zocker/container100/ (5 MB)
+# جمع: 500 MB برای 100 کانتینر یکسان!
+\end{code}
+
+\textbf{راه‌حل Docker}: union filesystem (مثل OverlayFS) که در آن:
+\begin{itemize}
+  \item لایه‌های پایه read-only و مشترک هستند
+  \item هر کانتینر فقط یک layer قابل‌نوشتن برای تغییرات دارد
+\end{itemize}
+
+\section{تغییرات کد}
+
+\subsection{فایل: \lr{src/run.c}}
+
+تغییرات اصلی در تابع \lr{run\_container} انجام شد:
+
+\begin{code}
+int run_container(struct container cont) {
+  pid_t pid;
+
+  if (unshare(CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWTIME) != 0) {
+    return 1;
+  }
+
+  pid = fork();
+  if (pid < 0) {
+    return 1;
+  }
+
+  if (pid == 0) {
+    char container_dir[256];
+
+    // ✨ تغییر 1: پشتیبانی از base_dir
+    // Use base_dir if provided, otherwise setup container directory
+    if (strlen(cont.base_dir) > 0) {
+      strncpy(container_dir, cont.base_dir, sizeof(container_dir) - 1);
+      container_dir[sizeof(container_dir) - 1] = '\0';
+    } else {
+      if (setup_container_dir(cont.id, container_dir) != 0) {
+        fprintf(stderr, "[ERR] Failed to setup container directory for %s\n",
+                cont.id);
+        return 1;
+      }
+    }
+
+    if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) != 0) {
+      fprintf(stderr, "[ERR] Failed to change mount to private: %s\n",
+              strerror(errno));
+      return 1;
+    }
+
+    if (chroot(container_dir) != 0) {
+      fprintf(stderr,
+              "[ERR] Failed to chroot into container directory for %s: %s\n",
+              cont.id, strerror(errno));
+      return 1;
+    }
+
+    if (chdir("/") != 0) {
+      fprintf(stderr, "[ERR] Failed to change directory to root: %s\n",
+              strerror(errno));
+      return 1;
+    }
+
+    // ✨ تغییر 2: بررسی وجود /proc قبل از ایجاد
+    // Create /proc directory if it doesn't exist (it might exist in base_dir)
+    struct stat st;
+    if (stat("/proc", &st) == -1) {
+      if (mkdir("/proc", 0555) != 0) {
+        fprintf(stderr, "[ERR] Failed to create /proc directory: %s\n",
+                strerror(errno));
+        return 1;
+      }
+    }
+
+    if (mount(NULL, "/proc", "proc", 0, NULL) != 0) {
+      fprintf(stderr, "[ERR] Failed to remount /proc: %s\n", strerror(errno));
+      return 1;
+    }
+
+    if (sethostname(cont.id, 64) != 0) {
+      fprintf(stderr, "[ERR] Failed to set hostname\n");
+      return 1;
+    }
+
+    printf("Running child with pid: %d\n", getpid());
+    if (execl("/bin/sh", "sh", "-c", cont.command, NULL) != 0) {
+      fprintf(stderr, "[ERR] Failed to call create container process: %s\n",
+              strerror(errno));
+      return 1;
+    }
+  } else {
+    sleep(2);
+    waitpid(pid, NULL, 0);
+    printf("[Parent] Stoping...\n");
+  }
+  return 0;
+}
+\end{code}
+
+\section{نتایج و تست‌ها}
+
+\subsection{تست 1: اجرای دستورات متعدد}
+\begin{code}
+./zocker run --name my-container --base-dir /tmp/zocker/mycontainer \
+    'ls -la / && cat /test.txt && hostname'
+\end{code}
+
+\textbf{نتیجه}: ✅ موفقیت‌آمیز
+
+\subsection{تست 2: بررسی \lr{/proc}}
+\begin{code}
+./zocker run --name my-container --base-dir /tmp/zocker/mycontainer 'ls /proc/ | head'
+\end{code}
+
+\textbf{نتیجه}: ✅ \lr{/proc} به درستی mount شده است.
+
+\subsection{تست 3: اجرای Shell تعاملی}
+\begin{code}
+timeout 5 ./zocker run --name my-container --base-dir /tmp/zocker/mycontainer 'sh'
+\end{code}
+
+\textbf{نتیجه}: ✅ Shell اجرا شد.
+
+\subsection{تست 4: Backward Compatibility}
+\begin{code}
+./zocker run --name test 'echo "Old method still works"'
+\end{code}
+
+\textbf{نتیجه}: ✅ بدون \lr{--base-dir} هم درست کار می‌کند.
+
+\section{نتیجه‌گیری}
+
+\subsection{دستاوردها}
+\begin{enumerate}
+  \item پیاده‌سازی قابلیت \lr{--base-dir} در Zocker
+  \item امکان استفاده از فایل سیستم‌های export شده از Docker
+  \item درک تفاوت‌های \lr{/proc} در حالت‌های مختلف
+  \item شناخت محدودیت‌های روش ساده و مزایای layered filesystem
+\end{enumerate}
+
+\subsection{نکات آموخته شده}
+\begin{enumerate}
+  \item \lr{docker export} فقط فایل‌های واقعی را خروجی می‌گیرد.
+  \item pseudo-filesystems مانند \lr{/proc} باید در runtime mount شوند.
+  \item روش کپی کامل برای production کارآمد نیست؛ Docker لایه‌ای است.
+  \item \lr{chroot} نیازمند دقت امنیتی و کنترلی است.
+\end{enumerate}
+
+\subsection{بهبودهای آتی}
+\begin{itemize}
+  \item پیاده‌سازی Copy-on-Write
+  \item استفاده از OverlayFS برای layering
+  \item مدیریت بهتر منابع و isolation
+  \item افزودن caching برای base images
+\end{itemize}
+
+\section{منابع و مراجع}
+\begin{enumerate}
+  \item \href{https://docs.docker.com/reference/cli/docker/container/export/}{Docker Export Documentation}
+  \item \href{https://man7.org/linux/man-pages/man5/proc.5.html}{Linux /proc Filesystem}
+  \item \href{https://man7.org/linux/man-pages/man2/chroot.2.html}{Chroot Manual}
+  \item \href{https://docs.docker.com/storage/storagedriver/}{Docker Storage Drivers}
+  \item \href{https://www.kernel.org/doc/Documentation/filesystems/overlayfs.txt}{OverlayFS Documentation}
+\end{enumerate}
+
+\vspace{1em}
+\textbf{پایان گزارش}
+
+\end{document}

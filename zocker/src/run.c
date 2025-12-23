@@ -15,6 +15,7 @@
 void container_from_config(struct config cfg, struct container *c) {
   strncpy(c->id, cfg.name, sizeof(c->id));
   strncpy(c->command, cfg.command, sizeof(c->command));
+  strncpy(c->base_dir, cfg.base_dir, sizeof(c->base_dir));
 }
 
 int run_container(struct container cont) {
@@ -31,10 +32,17 @@ int run_container(struct container cont) {
 
   if (pid == 0) {
     char container_dir[256];
-    if (setup_container_dir(cont.id, container_dir) != 0) {
-      fprintf(stderr, "[ERR] Failed to setup container directory for %s\n",
-              cont.id);
-      return 1;
+    
+    // Use base_dir if provided, otherwise setup container directory
+    if (strlen(cont.base_dir) > 0) {
+      strncpy(container_dir, cont.base_dir, sizeof(container_dir) - 1);
+      container_dir[sizeof(container_dir) - 1] = '\0';
+    } else {
+      if (setup_container_dir(cont.id, container_dir) != 0) {
+        fprintf(stderr, "[ERR] Failed to setup container directory for %s\n",
+                cont.id);
+        return 1;
+      }
     }
 
     if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) != 0) {
@@ -44,19 +52,26 @@ int run_container(struct container cont) {
     }
 
     if (chroot(container_dir) != 0) {
-      fprintf(stderr, "[ERR] Failed to chroot to %s: %s\n", container_dir,
-              strerror(errno));
+      fprintf(stderr,
+              "[ERR] Failed to chroot into container directory for %s: %s\n",
+              cont.id, strerror(errno));
       return 1;
     }
 
     if (chdir("/") != 0) {
-      fprintf(stderr, "[ERR] Failed to chdir to /: %s\n", strerror(errno));
+      fprintf(stderr, "[ERR] Failed to change directory to root: %s\n",
+              strerror(errno));
       return 1;
     }
 
-    if (mkdir("/proc", 0755) == -1 && errno != EEXIST) {
-      fprintf(stderr, "[ERR] Failed to create /proc: %s\n", strerror(errno));
-      return 1;
+    // Create /proc directory if it doesn't exist (it might exist in base_dir)
+    struct stat st;
+    if (stat("/proc", &st) == -1) {
+      if (mkdir("/proc", 0555) != 0) {
+        fprintf(stderr, "[ERR] Failed to create /proc directory: %s\n",
+                strerror(errno));
+        return 1;
+      }
     }
 
     if (mount(NULL, "/proc", "proc", 0, NULL) != 0) {

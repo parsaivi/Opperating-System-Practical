@@ -4,6 +4,7 @@
 struct container {
   char id[64];
   char command[256];
+  char base_dir[256];
 };
 
 int run_container(struct container cont);

@@ -36,7 +36,7 @@ main(int argc, char *argv[])
     if(i + 1 < argc){
       write(1, " ", 1);
   30:	00001a97          	auipc	s5,0x1
-  34:	8c0a8a93          	addi	s5,s5,-1856 # 8f0 <malloc+0xfe>
+  34:	990a8a93          	addi	s5,s5,-1648 # 9c0 <calloc+0x40>
   38:	a809                	j	4a <main+0x4a>
   3a:	4605                	li	a2,1
   3c:	85d6                	mv	a1,s5
@@ -59,7 +59,7 @@ main(int argc, char *argv[])
       write(1, "\n", 1);
   64:	4605                	li	a2,1
   66:	00001597          	auipc	a1,0x1
-  6a:	89258593          	addi	a1,a1,-1902 # 8f8 <malloc+0x106>
+  6a:	96258593          	addi	a1,a1,-1694 # 9c8 <calloc+0x48>
   6e:	4505                	li	a0,1
   70:	2be000ef          	jal	32e <write>
     }
@@ -809,7 +809,7 @@ printint(int fd, long long xx, int base, int sgn)
   do{
     buf[i++] = digits[x % base];
  3ee:	00000517          	auipc	a0,0x0
- 3f2:	51a50513          	addi	a0,a0,1306 # 908 <digits>
+ 3f2:	5ea50513          	addi	a0,a0,1514 # 9d8 <digits>
  3f6:	883e                	mv	a6,a5
  3f8:	2785                	addiw	a5,a5,1
  3fa:	02c5f733          	remu	a4,a1,a2
@@ -1171,7 +1171,7 @@ vprintf(int fd, const char *fmt, va_list ap)
  682:	4941                	li	s2,16
     putc(fd, digits[x >> (sizeof(uint64) * 8 - 4)]);
  684:	00000b97          	auipc	s7,0x0
- 688:	284b8b93          	addi	s7,s7,644 # 908 <digits>
+ 688:	354b8b93          	addi	s7,s7,852 # 9d8 <digits>
  68c:	03c9d793          	srli	a5,s3,0x3c
  690:	97de                	add	a5,a5,s7
  692:	0007c583          	lbu	a1,0(a5)
@@ -1217,7 +1217,7 @@ vprintf(int fd, const char *fmt, va_list ap)
  6e4:	bbd9                	j	4ba <vprintf+0x4a>
           s = "(null)";
  6e6:	00000917          	auipc	s2,0x0
- 6ea:	21a90913          	addi	s2,s2,538 # 900 <malloc+0x10e>
+ 6ea:	2ea90913          	addi	s2,s2,746 # 9d0 <calloc+0x50>
         for(; *s; s++)
  6ee:	02800593          	li	a1,40
  6f2:	b7c5                	j	6d2 <vprintf+0x262>
@@ -1520,3 +1520,156 @@ malloc(uint nbytes)
  8e4:	6aa2                	ld	s5,8(sp)
  8e6:	6b02                	ld	s6,0(sp)
  8e8:	b7f5                	j	8d4 <malloc+0xe2>
+
+00000000000008ea <realloc>:
+
+void*
+realloc(void *ptr, uint nbytes)
+{
+ 8ea:	7139                	addi	sp,sp,-64
+ 8ec:	fc06                	sd	ra,56(sp)
+ 8ee:	f822                	sd	s0,48(sp)
+ 8f0:	f426                	sd	s1,40(sp)
+ 8f2:	e852                	sd	s4,16(sp)
+ 8f4:	0080                	addi	s0,sp,64
+ 8f6:	84ae                	mv	s1,a1
+  void *new_ptr;
+  char *src, *dst;
+  uint i;
+
+  // If ptr is NULL, behave like malloc
+  if(ptr == 0)
+ 8f8:	c535                	beqz	a0,964 <realloc+0x7a>
+ 8fa:	f04a                	sd	s2,32(sp)
+ 8fc:	892a                	mv	s2,a0
+    return malloc(nbytes);
+
+  // If nbytes is 0, behave like free and return NULL
+  if(nbytes == 0){
+ 8fe:	c9a5                	beqz	a1,96e <realloc+0x84>
+ 900:	ec4e                	sd	s3,24(sp)
+ 902:	e456                	sd	s5,8(sp)
+    return 0;
+  }
+
+  // Get the header of the old block
+  bp = (Header*)ptr - 1;
+  old_size = (bp->s.size - 1) * sizeof(Header);
+ 904:	ff852983          	lw	s3,-8(a0)
+ 908:	fff9879b          	addiw	a5,s3,-1
+ 90c:	00479a9b          	slliw	s5,a5,0x4
+
+  // Allocate new block
+  new_ptr = malloc(nbytes);
+ 910:	852e                	mv	a0,a1
+ 912:	ee1ff0ef          	jal	7f2 <malloc>
+ 916:	8a2a                	mv	s4,a0
+  if(new_ptr == 0)
+ 918:	c125                	beqz	a0,978 <realloc+0x8e>
+    return 0;
+
+  // Copy old content to new block (copy minimum of old and new sizes)
+  src = (char*)ptr;
+  dst = (char*)new_ptr;
+  for(i = 0; i < old_size && i < nbytes; i++)
+ 91a:	020a8863          	beqz	s5,94a <realloc+0x60>
+ 91e:	0049961b          	slliw	a2,s3,0x4
+ 922:	363d                	addiw	a2,a2,-17
+ 924:	1602                	slli	a2,a2,0x20
+ 926:	9201                	srli	a2,a2,0x20
+ 928:	02049593          	slli	a1,s1,0x20
+ 92c:	9181                	srli	a1,a1,0x20
+ 92e:	4781                	li	a5,0
+    dst[i] = src[i];
+ 930:	00f90733          	add	a4,s2,a5
+ 934:	00074683          	lbu	a3,0(a4)
+ 938:	00fa0733          	add	a4,s4,a5
+ 93c:	00d70023          	sb	a3,0(a4)
+  for(i = 0; i < old_size && i < nbytes; i++)
+ 940:	00c78563          	beq	a5,a2,94a <realloc+0x60>
+ 944:	0785                	addi	a5,a5,1
+ 946:	feb795e3          	bne	a5,a1,930 <realloc+0x46>
+
+  // Free old block
+  free(ptr);
+ 94a:	854a                	mv	a0,s2
+ 94c:	e25ff0ef          	jal	770 <free>
+ 950:	7902                	ld	s2,32(sp)
+ 952:	69e2                	ld	s3,24(sp)
+ 954:	6aa2                	ld	s5,8(sp)
+
+  return new_ptr;
+}
+ 956:	8552                	mv	a0,s4
+ 958:	70e2                	ld	ra,56(sp)
+ 95a:	7442                	ld	s0,48(sp)
+ 95c:	74a2                	ld	s1,40(sp)
+ 95e:	6a42                	ld	s4,16(sp)
+ 960:	6121                	addi	sp,sp,64
+ 962:	8082                	ret
+    return malloc(nbytes);
+ 964:	852e                	mv	a0,a1
+ 966:	e8dff0ef          	jal	7f2 <malloc>
+ 96a:	8a2a                	mv	s4,a0
+ 96c:	b7ed                	j	956 <realloc+0x6c>
+    free(ptr);
+ 96e:	e03ff0ef          	jal	770 <free>
+    return 0;
+ 972:	4a01                	li	s4,0
+ 974:	7902                	ld	s2,32(sp)
+ 976:	b7c5                	j	956 <realloc+0x6c>
+ 978:	7902                	ld	s2,32(sp)
+ 97a:	69e2                	ld	s3,24(sp)
+ 97c:	6aa2                	ld	s5,8(sp)
+ 97e:	bfe1                	j	956 <realloc+0x6c>
+
+0000000000000980 <calloc>:
+
+void*
+calloc(uint num, uint size)
+{
+ 980:	1101                	addi	sp,sp,-32
+ 982:	ec06                	sd	ra,24(sp)
+ 984:	e822                	sd	s0,16(sp)
+ 986:	e426                	sd	s1,8(sp)
+ 988:	e04a                	sd	s2,0(sp)
+ 98a:	1000                	addi	s0,sp,32
+  void *ptr;
+  char *p;
+  uint i;
+
+  // Calculate total size needed
+  total_size = num * size;
+ 98c:	02b504bb          	mulw	s1,a0,a1
+ 990:	0004891b          	sext.w	s2,s1
+
+  // Allocate memory
+  ptr = malloc(total_size);
+ 994:	854a                	mv	a0,s2
+ 996:	e5dff0ef          	jal	7f2 <malloc>
+  if(ptr == 0)
+ 99a:	cd09                	beqz	a0,9b4 <calloc+0x34>
+    return 0;
+
+  // Initialize all bytes to zero
+  p = (char*)ptr;
+  for(i = 0; i < total_size; i++)
+ 99c:	00090c63          	beqz	s2,9b4 <calloc+0x34>
+ 9a0:	87aa                	mv	a5,a0
+ 9a2:	02049713          	slli	a4,s1,0x20
+ 9a6:	9301                	srli	a4,a4,0x20
+ 9a8:	972a                	add	a4,a4,a0
+    p[i] = 0;
+ 9aa:	00078023          	sb	zero,0(a5)
+  for(i = 0; i < total_size; i++)
+ 9ae:	0785                	addi	a5,a5,1
+ 9b0:	fee79de3          	bne	a5,a4,9aa <calloc+0x2a>
+
+  return ptr;
+}
+ 9b4:	60e2                	ld	ra,24(sp)
+ 9b6:	6442                	ld	s0,16(sp)
+ 9b8:	64a2                	ld	s1,8(sp)
+ 9ba:	6902                	ld	s2,0(sp)
+ 9bc:	6105                	addi	sp,sp,32
+ 9be:	8082                	ret

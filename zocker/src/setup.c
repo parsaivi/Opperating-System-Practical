@@ -1,56 +1,9 @@
-#define _GNU_SOURCE
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/stat.h>
-#include <unistd.h>
-#include <libgen.h>
 
 #include "setup.h"
-
-static int copy_file(const char *src, const char *dst) {
-  char cmd[512];
-  snprintf(cmd, sizeof(cmd), "cp %s %s", src, dst);
-  return system(cmd);
-}
-
-static int copy_libs_for_binary(const char *binary, const char *container_dir) {
-  char cmd[512];
-  char line[512];
-  FILE *fp;
-
-  snprintf(cmd, sizeof(cmd), "ldd %s 2>/dev/null", binary);
-  fp = popen(cmd, "r");
-  if (!fp) return 1;
-
-  while (fgets(line, sizeof(line), fp)) {
-    char *start = strchr(line, '/');
-    if (!start) continue;
-    
-    char *end = strchr(start, ' ');
-    if (end) *end = '\0';
-    end = strchr(start, '\n');
-    if (end) *end = '\0';
-
-    char dest[512];
-    snprintf(dest, sizeof(dest), "%s%s", container_dir, start);
-
-    char dest_dir[512];
-    strncpy(dest_dir, dest, sizeof(dest_dir));
-    char *dir = dirname(dest_dir);
-    
-    char mkdir_cmd[512];
-    snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p %s", dir);
-    system(mkdir_cmd);
-
-    if (access(dest, F_OK) != 0) {
-      copy_file(start, dest);
-    }
-  }
-  pclose(fp);
-  return 0;
-}
 
 static int setup_bin_dir(const char container_dir[256]);
 static int setup_lib_dir(const char container_dir[256]);
@@ -123,52 +76,34 @@ static int setup_bin_dir(const char container_dir[256]) {
   if (snprintf(bin_dir, sizeof(bin_dir), "%s/bin", container_dir) < 0) {
     return 1;
   }
-  if (mkdir(bin_dir, 0755) == -1 && errno != EEXIST) {
+  if (mkdir(bin_dir, 0755) == -1) {
     fprintf(stderr, "[ERR] Failed to create bin directory %s\n", bin_dir);
     return 1;
   }
 
-  const char *binaries[] = {"/bin/sh", "/bin/ls", "/bin/cat", "/bin/pwd", NULL};
-  
-  for (int i = 0; binaries[i] != NULL; i++) {
-    char dest[512];
-    const char *bin_name = strrchr(binaries[i], '/');
-    if (!bin_name) continue;
-    bin_name++;
-    
-    snprintf(dest, sizeof(dest), "%s/%s", bin_dir, bin_name);
-    
-    if (access(dest, F_OK) != 0) {
-      copy_file(binaries[i], dest);
-      char chmod_cmd[512];
-      snprintf(chmod_cmd, sizeof(chmod_cmd), "chmod +x %s", dest);
-      system(chmod_cmd);
-    }
-    
-    copy_libs_for_binary(binaries[i], container_dir);
+  char command[512];
+  if (snprintf(command, sizeof(command), "cp /usr/bin/sh %s", bin_dir) < 0) {
+    return 1;
   }
+  system(command);
+
+  if (snprintf(command, sizeof(command), "cp /usr/bin/ls %s", bin_dir) < 0) {
+    return 1;
+  }
+  system(command);
 
   return 0;
 }
 
 static int setup_lib_dir(const char container_dir[256]) {
   char lib_dir[256];
-  char lib32_dir[256];
   char lib64_dir[256];
 
   if (snprintf(lib_dir, sizeof(lib_dir), "%s/lib", container_dir) < 0) {
     return 1;
   }
-  if (mkdir(lib_dir, 0755) == -1 && errno != EEXIST) {
+  if (mkdir(lib_dir, 0755) == -1) {
     fprintf(stderr, "[ERR] Failed to create lib directory %s\n", lib_dir);
-    return 1;
-  }
-
-  if (snprintf(lib32_dir, sizeof(lib32_dir), "%s/lib32", container_dir) < 0) {
-    return 1;
-  }
-  if (mkdir(lib32_dir, 0755) == -1 && errno != EEXIST) {
-    fprintf(stderr, "[ERR] Failed to create lib32 directory %s\n", lib32_dir);
     return 1;
   }
 
@@ -176,10 +111,47 @@ static int setup_lib_dir(const char container_dir[256]) {
     return 1;
   }
 
-  if (mkdir(lib64_dir, 0755) == -1 && errno != EEXIST) {
+  if (mkdir(lib64_dir, 0755) == -1) {
     fprintf(stderr, "[ERR] Failed to create lib64 directory %s\n", lib64_dir);
     return 1;
   }
+
+  char command[512];
+  if (snprintf(command, sizeof(command),
+               "cp /lib/x86_64-linux-gnu/libc.so.6 %s", lib_dir) < 0) {
+    return 1;
+  }
+  system(command);
+
+  if (snprintf(command, sizeof(command), "cp /lib64/ld-linux-x86-64.so.2 %s",
+               lib64_dir) < 0) {
+    return 1;
+  }
+  system(command);
+
+  if (snprintf(command, sizeof(command),
+               "cp /lib/x86_64-linux-gnu/libselinux.so.1 %s", lib_dir) < 0) {
+    return 1;
+  }
+  system(command);
+
+  if (snprintf(command, sizeof(command),
+               "cp /lib/x86_64-linux-gnu/libc.so.6 %s", lib_dir) < 0) {
+    return 1;
+  }
+  system(command);
+
+  if (snprintf(command, sizeof(command),
+               "cp /lib/x86_64-linux-gnu/libpcre2-8.so.0 %s", lib_dir) < 0) {
+    return 1;
+  }
+  system(command);
+
+  if (snprintf(command, sizeof(command), "cp /lib64/ld-linux-x86-64.so.2 %s",
+               lib64_dir) < 0) {
+    return 1;
+  }
+  system(command);
 
   return 0;
 }

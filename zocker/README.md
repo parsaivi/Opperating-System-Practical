@@ -36,3 +36,9 @@ Trying to implement some of dockers functionalities.
 - https://man7.org/linux/man-pages/man2/chroot.2.html
 - https://man7.org/linux/man-pages/man2/chdir.2.html
 - https://man7.org/linux/man-pages/man1/ldd.1.html
+
+# Task 4
+- Check out to the task 4 tag (`git checkout t4`).
+- Change `run_container` under `src/run.c` to respect `--base-dir` flag and run a container based on a full environment exported of a standard container.
+### Useful Links
+- https://docs.docker.com/reference/cli/docker/container/export/

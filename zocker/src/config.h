@@ -15,6 +15,7 @@ struct config {
   enum COMMAND subcommand;
   char name[64];
   char command[256];
+  char base_dir[512];
 };
 
 int validate_config(struct config cfg);

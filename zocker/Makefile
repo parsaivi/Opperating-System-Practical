@@ -9,7 +9,7 @@ DEPS = $(OBJECTS:.o=.d)
 
 $(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) -o $@ $^
-	sudo setcap cap_sys_admin+ep $(TARGET)
+	sudo setcap cap_sys_admin,cap_sys_chroot+ep $(TARGET)
 
 -include $(DEPS)
 

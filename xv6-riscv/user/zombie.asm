@@ -768,7 +768,7 @@ printint(int fd, long long xx, int base, int sgn)
   do{
     buf[i++] = digits[x % base];
  392:	00000517          	auipc	a0,0x0
- 396:	50650513          	addi	a0,a0,1286 # 898 <digits>
+ 396:	5e650513          	addi	a0,a0,1510 # 978 <digits>
  39a:	883e                	mv	a6,a5
  39c:	2785                	addiw	a5,a5,1
  39e:	02c5f733          	remu	a4,a1,a2
@@ -1130,7 +1130,7 @@ vprintf(int fd, const char *fmt, va_list ap)
  626:	4941                	li	s2,16
     putc(fd, digits[x >> (sizeof(uint64) * 8 - 4)]);
  628:	00000b97          	auipc	s7,0x0
- 62c:	270b8b93          	addi	s7,s7,624 # 898 <digits>
+ 62c:	350b8b93          	addi	s7,s7,848 # 978 <digits>
  630:	03c9d793          	srli	a5,s3,0x3c
  634:	97de                	add	a5,a5,s7
  636:	0007c583          	lbu	a1,0(a5)
@@ -1176,7 +1176,7 @@ vprintf(int fd, const char *fmt, va_list ap)
  688:	bbd9                	j	45e <vprintf+0x4a>
           s = "(null)";
  68a:	00000917          	auipc	s2,0x0
- 68e:	20690913          	addi	s2,s2,518 # 890 <malloc+0xfa>
+ 68e:	2e690913          	addi	s2,s2,742 # 970 <calloc+0x4c>
         for(; *s; s++)
  692:	02800593          	li	a1,40
  696:	b7c5                	j	676 <vprintf+0x262>
@@ -1479,3 +1479,156 @@ malloc(uint nbytes)
  888:	6aa2                	ld	s5,8(sp)
  88a:	6b02                	ld	s6,0(sp)
  88c:	b7f5                	j	878 <malloc+0xe2>
+
+000000000000088e <realloc>:
+
+void*
+realloc(void *ptr, uint nbytes)
+{
+ 88e:	7139                	addi	sp,sp,-64
+ 890:	fc06                	sd	ra,56(sp)
+ 892:	f822                	sd	s0,48(sp)
+ 894:	f426                	sd	s1,40(sp)
+ 896:	e852                	sd	s4,16(sp)
+ 898:	0080                	addi	s0,sp,64
+ 89a:	84ae                	mv	s1,a1
+  void *new_ptr;
+  char *src, *dst;
+  uint i;
+
+  // If ptr is NULL, behave like malloc
+  if(ptr == 0)
+ 89c:	c535                	beqz	a0,908 <realloc+0x7a>
+ 89e:	f04a                	sd	s2,32(sp)
+ 8a0:	892a                	mv	s2,a0
+    return malloc(nbytes);
+
+  // If nbytes is 0, behave like free and return NULL
+  if(nbytes == 0){
+ 8a2:	c9a5                	beqz	a1,912 <realloc+0x84>
+ 8a4:	ec4e                	sd	s3,24(sp)
+ 8a6:	e456                	sd	s5,8(sp)
+    return 0;
+  }
+
+  // Get the header of the old block
+  bp = (Header*)ptr - 1;
+  old_size = (bp->s.size - 1) * sizeof(Header);
+ 8a8:	ff852983          	lw	s3,-8(a0)
+ 8ac:	fff9879b          	addiw	a5,s3,-1
+ 8b0:	00479a9b          	slliw	s5,a5,0x4
+
+  // Allocate new block
+  new_ptr = malloc(nbytes);
+ 8b4:	852e                	mv	a0,a1
+ 8b6:	ee1ff0ef          	jal	796 <malloc>
+ 8ba:	8a2a                	mv	s4,a0
+  if(new_ptr == 0)
+ 8bc:	c125                	beqz	a0,91c <realloc+0x8e>
+    return 0;
+
+  // Copy old content to new block (copy minimum of old and new sizes)
+  src = (char*)ptr;
+  dst = (char*)new_ptr;
+  for(i = 0; i < old_size && i < nbytes; i++)
+ 8be:	020a8863          	beqz	s5,8ee <realloc+0x60>
+ 8c2:	0049961b          	slliw	a2,s3,0x4
+ 8c6:	363d                	addiw	a2,a2,-17
+ 8c8:	1602                	slli	a2,a2,0x20
+ 8ca:	9201                	srli	a2,a2,0x20
+ 8cc:	02049593          	slli	a1,s1,0x20
+ 8d0:	9181                	srli	a1,a1,0x20
+ 8d2:	4781                	li	a5,0
+    dst[i] = src[i];
+ 8d4:	00f90733          	add	a4,s2,a5
+ 8d8:	00074683          	lbu	a3,0(a4)
+ 8dc:	00fa0733          	add	a4,s4,a5
+ 8e0:	00d70023          	sb	a3,0(a4)
+  for(i = 0; i < old_size && i < nbytes; i++)
+ 8e4:	00c78563          	beq	a5,a2,8ee <realloc+0x60>
+ 8e8:	0785                	addi	a5,a5,1
+ 8ea:	feb795e3          	bne	a5,a1,8d4 <realloc+0x46>
+
+  // Free old block
+  free(ptr);
+ 8ee:	854a                	mv	a0,s2
+ 8f0:	e25ff0ef          	jal	714 <free>
+ 8f4:	7902                	ld	s2,32(sp)
+ 8f6:	69e2                	ld	s3,24(sp)
+ 8f8:	6aa2                	ld	s5,8(sp)
+
+  return new_ptr;
+}
+ 8fa:	8552                	mv	a0,s4
+ 8fc:	70e2                	ld	ra,56(sp)
+ 8fe:	7442                	ld	s0,48(sp)
+ 900:	74a2                	ld	s1,40(sp)
+ 902:	6a42                	ld	s4,16(sp)
+ 904:	6121                	addi	sp,sp,64
+ 906:	8082                	ret
+    return malloc(nbytes);
+ 908:	852e                	mv	a0,a1
+ 90a:	e8dff0ef          	jal	796 <malloc>
+ 90e:	8a2a                	mv	s4,a0
+ 910:	b7ed                	j	8fa <realloc+0x6c>
+    free(ptr);
+ 912:	e03ff0ef          	jal	714 <free>
+    return 0;
+ 916:	4a01                	li	s4,0
+ 918:	7902                	ld	s2,32(sp)
+ 91a:	b7c5                	j	8fa <realloc+0x6c>
+ 91c:	7902                	ld	s2,32(sp)
+ 91e:	69e2                	ld	s3,24(sp)
+ 920:	6aa2                	ld	s5,8(sp)
+ 922:	bfe1                	j	8fa <realloc+0x6c>
+
+0000000000000924 <calloc>:
+
+void*
+calloc(uint num, uint size)
+{
+ 924:	1101                	addi	sp,sp,-32
+ 926:	ec06                	sd	ra,24(sp)
+ 928:	e822                	sd	s0,16(sp)
+ 92a:	e426                	sd	s1,8(sp)
+ 92c:	e04a                	sd	s2,0(sp)
+ 92e:	1000                	addi	s0,sp,32
+  void *ptr;
+  char *p;
+  uint i;
+
+  // Calculate total size needed
+  total_size = num * size;
+ 930:	02b504bb          	mulw	s1,a0,a1
+ 934:	0004891b          	sext.w	s2,s1
+
+  // Allocate memory
+  ptr = malloc(total_size);
+ 938:	854a                	mv	a0,s2
+ 93a:	e5dff0ef          	jal	796 <malloc>
+  if(ptr == 0)
+ 93e:	cd09                	beqz	a0,958 <calloc+0x34>
+    return 0;
+
+  // Initialize all bytes to zero
+  p = (char*)ptr;
+  for(i = 0; i < total_size; i++)
+ 940:	00090c63          	beqz	s2,958 <calloc+0x34>
+ 944:	87aa                	mv	a5,a0
+ 946:	02049713          	slli	a4,s1,0x20
+ 94a:	9301                	srli	a4,a4,0x20
+ 94c:	972a                	add	a4,a4,a0
+    p[i] = 0;
+ 94e:	00078023          	sb	zero,0(a5)
+  for(i = 0; i < total_size; i++)
+ 952:	0785                	addi	a5,a5,1
+ 954:	fee79de3          	bne	a5,a4,94e <calloc+0x2a>
+
+  return ptr;
+}
+ 958:	60e2                	ld	ra,24(sp)
+ 95a:	6442                	ld	s0,16(sp)
+ 95c:	64a2                	ld	s1,8(sp)
+ 95e:	6902                	ld	s2,0(sp)
+ 960:	6105                	addi	sp,sp,32
+ 962:	8082                	ret
